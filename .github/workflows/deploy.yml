@@ -45,6 +45,15 @@ jobs:
           kubectl config use-context external
           kubectl version --client
 
+      - name: Ensure imagePullSecrets on deployments
+        run: |
+          kubectl patch deployment/backend -n default \
+            -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"swr-secret"}]}}}}' \
+            --type=merge 2>/dev/null || true
+          kubectl patch deployment/frontend -n default \
+            -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"swr-secret"}]}}}}' \
+            --type=merge 2>/dev/null || true
+
       - name: Update backend deployment image
         run: |
           kubectl set image deployment/backend \
