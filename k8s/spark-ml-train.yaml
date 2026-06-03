@@ -1,0 +1,35 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: ml-train
+  namespace: default
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: swr.cn-north-4.myhuaweicloud.com/cloud-56/pyspark:v9
+  imagePullSecrets:
+    - swr-secret
+  mainApplicationFile: local:///data/movie_ml_train.py
+  sparkVersion: "3.4.3"
+  restartPolicy:
+    type: Never
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "1g"
+    serviceAccount: spark
+    volumeMounts:
+      - name: data-vol
+        mountPath: /data
+  executor:
+    cores: 1
+    instances: 2
+    memory: "1g"
+    volumeMounts:
+      - name: data-vol
+        mountPath: /data
+  volumes:
+    - name: data-vol
+      persistentVolumeClaim:
+        claimName: data-pvc
