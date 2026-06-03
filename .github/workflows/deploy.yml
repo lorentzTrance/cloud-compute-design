@@ -1,0 +1,64 @@
+name: Build and Deploy to CCE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Huawei Cloud SWR
+        uses: docker/login-action@v3
+        with:
+          registry: swr.cn-north-4.myhuaweicloud.com
+          username: cn-north-4@${{ secrets.HW_AK }}
+          password: ${{ secrets.HW_SK }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.backend
+          push: true
+          tags: swr.cn-north-4.myhuaweicloud.com/cloud-56/backend:latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.frontend
+          push: true
+          tags: swr.cn-north-4.myhuaweicloud.com/cloud-56/frontend:latest
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          kubectl version --client
+
+      - name: Update backend deployment image
+        run: |
+          kubectl set image deployment/backend \
+            backend=swr.cn-north-4.myhuaweicloud.com/cloud-56/backend:latest \
+            -n default
+          kubectl rollout status deployment/backend -n default --timeout=120s
+
+      - name: Update frontend deployment image
+        run: |
+          kubectl set image deployment/frontend \
+            frontend=swr.cn-north-4.myhuaweicloud.com/cloud-56/frontend:latest \
+            -n default
+          kubectl rollout status deployment/frontend -n default --timeout=120s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -o wide
+          kubectl get svc backend-svc
