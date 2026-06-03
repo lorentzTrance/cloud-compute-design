@@ -46,13 +46,26 @@ jobs:
           kubectl version --client
 
       - name: Ensure imagePullSecrets on deployments
+        env:
+          HW_AK: ${{ secrets.HW_AK }}
+          HW_SK: ${{ secrets.HW_SK }}
         run: |
-          kubectl patch deployment/backend -n default \
-            -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"swr-secret"}]}}}}' \
-            --type=merge 2>/dev/null || true
-          kubectl patch deployment/frontend -n default \
-            -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"swr-secret"}]}}}}' \
-            --type=merge 2>/dev/null || true
+          # Create/update swr-secret in default namespace
+          kubectl create secret docker-registry swr-secret \
+            --docker-server=swr.cn-north-4.myhuaweicloud.com \
+            --docker-username="cn-north-4@${HW_AK}" \
+            --docker-password="${HW_SK}" \
+            -n default --dry-run=client -o yaml | kubectl apply -f -
+
+          # Clean up stuck ReplicaSets from previous failed rollouts
+          kubectl delete rs -l app=backend --field-selector="status.replicas=0" --now 2>/dev/null || true
+          kubectl delete rs -l app=frontend --field-selector="status.replicas=0" --now 2>/dev/null || true
+
+          # Scale down to force new ReplicaSet with imagePullSecrets
+          kubectl scale deployment/backend -n default --replicas=0
+          sleep 3
+          kubectl scale deployment/backend -n default --replicas=2
+          sleep 3
 
       - name: Update backend deployment image
         run: |
@@ -65,6 +78,11 @@ jobs:
 
       - name: Update frontend deployment image
         run: |
+          # Scale down to force new ReplicaSet
+          kubectl scale deployment/frontend -n default --replicas=0
+          sleep 3
+          kubectl scale deployment/frontend -n default --replicas=1
+          sleep 3
           kubectl set image deployment/frontend \
             frontend=swr.cn-north-4.myhuaweicloud.com/cloud-56/frontend:latest \
             -n default
