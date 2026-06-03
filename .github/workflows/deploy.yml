@@ -100,4 +100,4 @@ jobs:
       - name: Verify deployment
         run: |
           kubectl get pods -o wide
-          kubectl get svc backend-svc backend-svc-np
+          kubectl get svc backend-svc
