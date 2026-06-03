@@ -50,16 +50,27 @@ jobs:
           kubectl set image deployment/backend \
             backend=swr.cn-north-4.myhuaweicloud.com/cloud-56/backend:latest \
             -n default
-          kubectl rollout status deployment/backend -n default --timeout=120s
+          sleep 5
+          kubectl get pods -o wide
+          kubectl rollout status deployment/backend -n default --timeout=300s
 
       - name: Update frontend deployment image
         run: |
           kubectl set image deployment/frontend \
             frontend=swr.cn-north-4.myhuaweicloud.com/cloud-56/frontend:latest \
             -n default
-          kubectl rollout status deployment/frontend -n default --timeout=120s
+          sleep 5
+          kubectl get pods -o wide
+          kubectl rollout status deployment/frontend -n default --timeout=300s
+
+      - name: Debug pods (if needed)
+        if: failure()
+        run: |
+          kubectl describe pods -l app=backend -n default
+          kubectl describe pods -l app=frontend -n default
+          kubectl get events -n default --sort-by=.lastTimestamp | tail -20
 
       - name: Verify deployment
         run: |
           kubectl get pods -o wide
-          kubectl get svc backend-svc
+          kubectl get svc backend-svc backend-svc-np
